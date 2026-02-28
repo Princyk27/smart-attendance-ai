@@ -79,7 +79,9 @@ This system can be scaled into a SaaS-based EdTech startup targeting schools, co
 
 ## Demo
 
-(Add screenshots here)
+![home page](s1.png)
+![home page](s2.png)
+![home page](s3.png)
 
 Example:
 ![Home Screen](screenshots/home.png)
