@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Smart Avatar Attendance</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- QR Scanner -->
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+<style>
+body {
+  margin:0;
+  font-family: 'Poppins', sans-serif;
+  background:#f2f3f7;
+}
+
+.app {
+  max-width:420px;
+  margin:auto;
+  min-height:100vh;
+  background:white;
+  padding:20px;
+  box-shadow:0 0 20px rgba(0,0,0,0.1);
+}
+
+h2 { text-align:center; }
+
+input, select {
+  width:100%;
+  padding:10px;
+  margin:10px 0;
+  border-radius:10px;
+  border:1px solid #ccc;
+}
+
+button {
+  width:100%;
+  padding:12px;
+  border:none;
+  border-radius:12px;
+  background:linear-gradient(135deg,#667eea,#764ba2);
+  color:white;
+  font-weight:bold;
+  margin-top:10px;
+  cursor:pointer;
+  transition:0.3s;
+}
+
+button:hover { transform:scale(1.05); }
+
+.avatars img {
+  width:70px;
+  border-radius:50%;
+  margin:10px;
+  cursor:pointer;
+  border:3px solid transparent;
+}
+
+.selected { border:3px solid green; }
+
+.hidden { display:none; }
+
+.notification {
+  position:fixed;
+  top:20px;
+  right:-300px;
+  background:green;
+  color:white;
+  padding:10px;
+  border-radius:10px;
+  animation:slide 0.5s forwards;
+}
+
+@keyframes slide {
+  to { right:20px; }
+}
+
+.dark {
+  background:#121212;
+  color:white;
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+<!-- LOGIN PAGE -->
+<div id="loginPage">
+<h2>Smart Avatar Attendance</h2>
+
+<input type="text" id="name" placeholder="Enter Name">
+<input type="text" id="id" placeholder="Enter ID">
+
+<select id="class">
+<option value="BCA">BCA</option>
+<option value="BSC">BSC</option>
+<option value="MCA">MCA</option>
+</select>
+
+<button onclick="goToAvatar()">Continue</button>
+</div>
+
+<!-- AVATAR PAGE -->
+<div id="avatarPage" class="hidden">
+<h2>Select Avatar</h2>
+<div class="avatars">
+<img src="https://i.pravatar.cc/100?img=1" onclick="selectAvatar(this)">
+<img src="https://i.pravatar.cc/100?img=2" onclick="selectAvatar(this)">
+<img src="https://i.pravatar.cc/100?img=3" onclick="selectAvatar(this)">
+<img src="https://i.pravatar.cc/100?img=4" onclick="selectAvatar(this)">
+</div>
+
+<button onclick="startQR()">Scan Class QR</button>
+
+<div id="reader" style="width:300px;margin:auto;"></div>
+
+<button onclick="markAttendance()">Mark Attendance</button>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboardPage" class="hidden">
+<h2>Attendance Dashboard</h2>
+
+<canvas id="chart"></canvas>
+
+<button onclick="exportCSV()">Export CSV</button>
+<button onclick="toggleDark()">🌙 Toggle Mode</button>
+<button onclick="location.reload()">Logout</button>
+</div>
+
+</div>
+
+<script>
+let selectedAvatar = "";
+
+function goToAvatar(){
+  let name = document.getElementById("name").value;
+  let id = document.getElementById("id").value;
+  let studentClass = document.getElementById("class").value;
+
+  if(!name || !id) return alert("Enter details");
+
+  localStorage.setItem("studentName", name);
+  localStorage.setItem("studentID", id);
+  localStorage.setItem("studentClass", studentClass);
+
+  loginPage.classList.add("hidden");
+  avatarPage.classList.remove("hidden");
+}
+
+function selectAvatar(img){
+  document.querySelectorAll(".avatars img")
+  .forEach(i=>i.classList.remove("selected"));
+
+  img.classList.add("selected");
+  selectedAvatar = img.src;
+}
+
+function startQR(){
+  const qr = new Html5QrcodeScanner("reader",{fps:10,qrbox:250});
+  qr.render((decodedText)=>{
+    if(decodedText === localStorage.getItem("studentClass")){
+      showNotification("Class Verified ✅");
+      qr.clear();
+    } else {
+      alert("Wrong Class QR");
+    }
+  });
+}
+
+function markAttendance(){
+  if(!selectedAvatar) return alert("Select Avatar!");
+
+  let attendance = JSON.parse(localStorage.getItem("attendance")) || [];
+
+  let record = {
+    name: localStorage.getItem("studentName"),
+    id: localStorage.getItem("studentID"),
+    class: localStorage.getItem("studentClass"),
+    avatar: selectedAvatar,
+    time: new Date().toLocaleString()
+  };
+
+  attendance.push(record);
+  localStorage.setItem("attendance", JSON.stringify(attendance));
+
+  showNotification("Attendance Marked Successfully!");
+
+  avatarPage.classList.add("hidden");
+  dashboardPage.classList.remove("hidden");
+
+  loadChart();
+}
+
+function loadChart(){
+  let attendance = JSON.parse(localStorage.getItem("attendance")) || [];
+  let counts={};
+
+  attendance.forEach(a=>{
+    counts[a.name]=(counts[a.name]||0)+1;
+  });
+
+  new Chart(document.getElementById("chart"),{
+    type:"bar",
+    data:{
+      labels:Object.keys(counts),
+      datasets:[{
+        label:"Attendance Count",
+        data:Object.values(counts)
+      }]
+    }
+  });
+}
+
+function exportCSV(){
+  let attendance = JSON.parse(localStorage.getItem("attendance")) || [];
+  let csv="Name,ID,Class,Time\n";
+
+  attendance.forEach(a=>{
+    csv+=`${a.name},${a.id},${a.class},${a.time}\n`;
+  });
+
+  let blob=new Blob([csv],{type:"text/csv"});
+  let url=URL.createObjectURL(blob);
+  let a=document.createElement("a");
+  a.href=url;
+  a.download="attendance.csv";
+  a.click();
+}
+
+function toggleDark(){
+  document.body.classList.toggle("dark");
+}
+
+function showNotification(msg){
+  let div=document.createElement("div");
+  div.className="notification";
+  div.innerText=msg;
+  document.body.appendChild(div);
+  setTimeout(()=>div.remove(),3000);
+}
+</script>
+
+</body>
+</html>
